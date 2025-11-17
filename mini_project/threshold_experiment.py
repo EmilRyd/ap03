@@ -86,6 +86,13 @@ THRESHOLD_STEPS = 100
 SAVE_PLOT = True
 PLOT_FILENAME = None  # Auto-generated if None
 
+# Channel-specific normalization values
+CHANNEL_NORMALIZATION = {
+    1: 300,  # Channel 1 (0.6 μm)
+    2: 255,  # Channel 2 (0.8 μm)
+    3: 40    # Channel 3 (1.6 μm)
+}
+
 # ====================================================================
 
 BASE_DIR = 'data'
@@ -229,26 +236,21 @@ def get_zoom_region(data, x_center, y_center, box_size):
     
     return data[y_min:y_max, x_min:x_max]
 
-def calculate_mse(data, threshold):
+def calculate_mse(data, threshold, channel, channel_normalization):
     """Calculate MSE between binary classification and normalized pixel values
     
-    1. Normalize pixels and threshold to [0, 1]
+    1. Normalize pixels and threshold using channel-specific normalization
     2. Create binary classification (0 or 1)
     3. Calculate MSE between binary and normalized pixels
     """
-    # Find min and max for normalization
-    data_min = np.min(data)
-    data_max = np.max(data)
+    # Get channel-specific normalization value
+    norm_value = channel_normalization[channel]
     
-    # Avoid division by zero
-    if data_max == data_min:
-        return 0.0
+    # Normalize data to [0, 1] using channel-specific normalization
+    normalized_data = data / norm_value
     
-    # Normalize data to [0, 1]
-    normalized_data = (data - data_min) / (data_max - data_min)
-    
-    # Normalize threshold to [0, 1]
-    normalized_threshold = (threshold - data_min) / (data_max - data_min)
+    # Normalize threshold using same channel-specific normalization
+    normalized_threshold = threshold / norm_value
     
     # Create binary classification
     binary_classification = (normalized_data >= normalized_threshold).astype(float)
@@ -304,7 +306,7 @@ def run_experiment(zone, x_center, y_center, box_size, threshold_range):
         
         for channel in [1, 2, 3]:
             if channel in zoom_data:
-                mse = calculate_mse(zoom_data[channel], threshold)
+                mse = calculate_mse(zoom_data[channel], threshold, channel, CHANNEL_NORMALIZATION)
                 mse_results[channel].append(mse)
             else:
                 mse_results[channel].append(np.nan)
@@ -480,6 +482,8 @@ def run_spatial_experiment(lat_range, lon_range, n_points, zone, box_size, thres
                          of std dev of normalized pixel values at each lat/lon point
         constant_mse: dict with keys 1,2,3, values are 2D arrays (n_points x n_points)
                      of MSE when using the constant threshold at each lat/lon point
+        random_baseline_mse: dict with keys 1,2,3, values are 2D arrays (n_points x n_points)
+                            of MSE when using random classification based on mean pixel value
     """
     print(f"\n{'='*70}")
     print(f"Running Spatial Threshold Experiment")
@@ -491,6 +495,9 @@ def run_spatial_experiment(lat_range, lon_range, n_points, zone, box_size, thres
     print(f"Box size: {box_size} pixels")
     print(f"Threshold range: {threshold_range[0]} to {threshold_range[-1]} ({len(threshold_range)} steps)")
     print(f"Constant thresholds for comparison: Ch1={constant_thresholds[1]}, Ch2={constant_thresholds[2]}, Ch3={constant_thresholds[3]}")
+    
+    # Set random seed for reproducibility of random baseline
+    np.random.seed(42)
     
     # Create grid of lat/lon points
     lats = np.linspace(lat_range[0], lat_range[1], n_points)
@@ -527,12 +534,18 @@ def run_spatial_experiment(lat_range, lon_range, n_points, zone, box_size, thres
         3: np.full((n_points, n_points), np.nan)
     }
     
+    random_baseline_mse = {
+        1: np.full((n_points, n_points), np.nan),
+        2: np.full((n_points, n_points), np.nan),
+        3: np.full((n_points, n_points), np.nan)
+    }
+    
     # Load geo calibration
     geo = Geo('geo.txt')
     
     if not geo.cal:
         print("Error: Geographic calibration not available!")
-        return lats, lons, optimal_thresholds, optimal_mse, mean_pixel_values, std_pixel_values, constant_mse
+        return lats, lons, optimal_thresholds, optimal_mse, mean_pixel_values, std_pixel_values, constant_mse, random_baseline_mse
     
     # Loop over all grid points
     total_points = n_points ** 2
@@ -566,21 +579,34 @@ def run_spatial_experiment(lat_range, lon_range, n_points, zone, box_size, thres
                 
                 # Calculate MSE for each threshold and find optimal, also calculate mean and std
                 for channel in [1, 2, 3]:
-                    # Get normalized pixel values for this channel
+                    # Get normalized pixel values for this channel using channel-specific normalization
                     data = zoom_data[channel]
-                    normalized_data = data / 255.0
+                    norm_value = CHANNEL_NORMALIZATION[channel]
+                    normalized_data = data / norm_value
                     
                     # Calculate mean and std of normalized pixels
-                    mean_pixel_values[channel][i, j] = np.mean(normalized_data)
+                    mean_pixel_value = np.mean(normalized_data)
+                    mean_pixel_values[channel][i, j] = mean_pixel_value
                     std_pixel_values[channel][i, j] = np.std(normalized_data)
                     
+                    # Calculate random baseline MSE
+                    # Randomly classify pixels as 1 or 0 based on mean pixel value
+                    n_pixels = normalized_data.size
+                    n_ones = int(np.round(mean_pixel_value * n_pixels))
+                    random_classification = np.zeros(n_pixels)
+                    random_indices = np.random.choice(n_pixels, size=n_ones, replace=False)
+                    random_classification[random_indices] = 1
+                    random_classification = random_classification.reshape(normalized_data.shape)
+                    # Calculate MSE between random classification and actual normalized pixels
+                    random_baseline_mse[channel][i, j] = np.mean((random_classification - normalized_data) ** 2)
+                    
                     # Calculate MSE for constant threshold
-                    constant_mse[channel][i, j] = calculate_mse(data, constant_thresholds[channel])
+                    constant_mse[channel][i, j] = calculate_mse(data, constant_thresholds[channel], channel, CHANNEL_NORMALIZATION)
                     
                     # Calculate MSE for each threshold
                     mse_values = []
                     for threshold in threshold_range:
-                        mse = calculate_mse(data, threshold)
+                        mse = calculate_mse(data, threshold, channel, CHANNEL_NORMALIZATION)
                         mse_values.append(mse)
                     
                     # Find optimal threshold (minimum MSE)
@@ -657,22 +683,40 @@ def run_spatial_experiment(lat_range, lon_range, n_points, zone, box_size, thres
             print()
     
     print(f"{'='*70}")
-    print("MSE COMPARISON: Optimal vs Constant Threshold")
+    print("Summary Statistics - Random Baseline MSE")
+    print(f"{'='*70}")
+    for channel in [1, 2, 3]:
+        valid_values = random_baseline_mse[channel][~np.isnan(random_baseline_mse[channel])]
+        if len(valid_values) > 0:
+            print(f"Channel {channel}:")
+            print(f"  Mean random baseline MSE: {np.mean(valid_values):.4f}")
+            print(f"  Std dev: {np.std(valid_values):.4f}")
+            print(f"  Min: {np.min(valid_values):.4f}")
+            print(f"  Max: {np.max(valid_values):.4f}")
+            print()
+    
+    print(f"{'='*70}")
+    print("MSE COMPARISON: Optimal vs Constant Threshold vs Random Baseline")
     print(f"{'='*70}")
     for channel in [1, 2, 3]:
         valid_optimal = optimal_mse[channel][~np.isnan(optimal_mse[channel])]
         valid_constant = constant_mse[channel][~np.isnan(constant_mse[channel])]
-        if len(valid_optimal) > 0 and len(valid_constant) > 0:
+        valid_random = random_baseline_mse[channel][~np.isnan(random_baseline_mse[channel])]
+        if len(valid_optimal) > 0 and len(valid_constant) > 0 and len(valid_random) > 0:
             avg_optimal = np.mean(valid_optimal)
             avg_constant = np.mean(valid_constant)
-            improvement = ((avg_constant - avg_optimal) / avg_constant) * 100
+            avg_random = np.mean(valid_random)
+            improvement_vs_constant = ((avg_constant - avg_optimal) / avg_constant) * 100
+            improvement_vs_random = ((avg_random - avg_optimal) / avg_random) * 100
             print(f"Channel {channel} (Constant Threshold = {constant_thresholds[channel]}):")
-            print(f"  Average Minimum MSE (optimal per box): {avg_optimal:.4f}")
+            print(f"  Average Optimal MSE (best per box): {avg_optimal:.4f}")
             print(f"  Average Constant Threshold MSE: {avg_constant:.4f}")
-            print(f"  Improvement from optimization: {improvement:.2f}%")
+            print(f"  Average Random Baseline MSE: {avg_random:.4f}")
+            print(f"  Improvement vs constant threshold: {improvement_vs_constant:.2f}%")
+            print(f"  Improvement vs random baseline: {improvement_vs_random:.2f}%")
             print()
     
-    return lats, lons, optimal_thresholds, optimal_mse, mean_pixel_values, std_pixel_values, constant_mse
+    return lats, lons, optimal_thresholds, optimal_mse, mean_pixel_values, std_pixel_values, constant_mse, random_baseline_mse
 
 def plot_spatial_results(lats, lons, optimal_thresholds, optimal_mse, mean_pixel_values, std_pixel_values, zone, save=False):
     """Create heatmaps showing optimal threshold, minimum MSE, mean and std of pixels at each lat/lon point"""
@@ -804,7 +848,7 @@ print(f"This will run {SPATIAL_N_POINTS**2} experiments (may take several minute
 spatial_threshold_range = np.linspace(THRESHOLD_MIN, THRESHOLD_MAX, THRESHOLD_STEPS)
 
 # Run spatial experiment
-lats, lons, optimal_thresholds, optimal_mse, mean_pixel_values, std_pixel_values, constant_mse = run_spatial_experiment(
+lats, lons, optimal_thresholds, optimal_mse, mean_pixel_values, std_pixel_values, constant_mse, random_baseline_mse = run_spatial_experiment(
     lat_range=(SPATIAL_LAT_MIN, SPATIAL_LAT_MAX),
     lon_range=(SPATIAL_LON_MIN, SPATIAL_LON_MAX),
     n_points=SPATIAL_N_POINTS,
