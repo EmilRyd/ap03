@@ -1,10 +1,11 @@
 """
 Visible Channel Viewer - Displays channels 1, 2, 3 with threshold-based binary classification
 
-For each channel:
+For each channel (3 rows):
 - Left: Original image
-- Right: Binary classification (red = above threshold, blue = below threshold)
-- Threshold textbox below each pair
+- Middle: Binary classification (red = above threshold, transparent = below threshold)
+- Right: Overlay (red classification overlaid on original with transparency)
+- Threshold textbox below each triplet
 """
 
 import math
@@ -152,20 +153,25 @@ class VisibleChannelViewer:
         self.hist_buttons = []  # Store histogram button references
         self.current_display_data = {}  # Store currently displayed data for histograms
         
-        # Binary colormap: blue for below, red for above
-        self.binary_cmap = ListedColormap(['blue', 'red'])
+        # Binary colormap: transparent for below, red for above
+        # Create RGBA colormap where 0=transparent, 1=red
+        transparent = [0, 0, 0, 0]  # Fully transparent
+        red = [1, 0, 0, 1]           # Opaque red
+        self.binary_cmap = ListedColormap([transparent, red])
         
         # Setup figure (sized for 13" MacBook, taller to accommodate extra controls)
-        self.fig = plt.figure(figsize=(12, 10.5))
+        self.fig = plt.figure(figsize=(14, 10.5))
         
-        # Create 3 rows x 2 columns layout
-        # Each row has: [original image | binary classification]
-        gs = self.fig.add_gridspec(3, 2, left=0.08, right=0.95, top=0.95, 
-                                   bottom=0.19, hspace=0.35, wspace=0.25)
+        # Create 3 rows x 3 columns layout
+        # Each row has: [original image | binary classification | overlay]
+        # Reduced margins and spacing to maximize image size
+        gs = self.fig.add_gridspec(3, 3, left=0.02, right=0.99, top=0.98, 
+                                   bottom=0.16, hspace=0.25, wspace=0.12)
         
-        # Create axes for each channel pair
+        # Create axes for each channel triplet
         self.axes_original = []
         self.axes_binary = []
+        self.axes_overlay = []
         self.threshold_boxes = []
         
         for i, channel in enumerate([1, 2, 3]):
@@ -176,6 +182,10 @@ class VisibleChannelViewer:
             # Binary classification image
             ax_bin = self.fig.add_subplot(gs[i, 1])
             self.axes_binary.append(ax_bin)
+            
+            # Overlay image
+            ax_overlay = self.fig.add_subplot(gs[i, 2])
+            self.axes_overlay.append(ax_overlay)
         
         # Control widgets at bottom
         # Zone slider
@@ -294,6 +304,35 @@ class VisibleChannelViewer:
         """Create binary classification: 0 for below threshold, 1 for above"""
         return (data >= threshold).astype(int)
     
+    def calculate_mse(self, data, threshold):
+        """Calculate MSE between binary classification and normalized pixel values
+        
+        1. Normalize pixels and threshold to [0, 1]
+        2. Create binary classification (0 or 1)
+        3. Calculate MSE between binary and normalized pixels
+        """
+        # Find min and max for normalization
+        data_min = np.min(data)
+        data_max = np.max(data)
+        
+        # Avoid division by zero
+        if data_max == data_min:
+            return 0.0
+        
+        # Normalize data to [0, 1]
+        normalized_data = (data - data_min) / (data_max - data_min)
+        
+        # Normalize threshold to [0, 1]
+        normalized_threshold = (threshold - data_min) / (data_max - data_min)
+        
+        # Create binary classification
+        binary_classification = (normalized_data >= normalized_threshold).astype(float)
+        
+        # Calculate MSE
+        mse = np.mean((binary_classification - normalized_data) ** 2)
+        
+        return mse
+    
     def update_display(self):
         """Update all channel displays"""
         # Remove old colorbars BEFORE clearing axes
@@ -311,9 +350,11 @@ class VisibleChannelViewer:
         for i, channel in enumerate([1, 2, 3]):
             ax_orig = self.axes_original[i]
             ax_bin = self.axes_binary[i]
+            ax_overlay = self.axes_overlay[i]
             
             ax_orig.clear()
             ax_bin.clear()
+            ax_overlay.clear()
             
             if self.images[channel] is None:
                 ax_orig.text(0.5, 0.5, f'Ch{channel}\nNot Found', 
@@ -321,6 +362,7 @@ class VisibleChannelViewer:
                            fontsize=12)
                 ax_orig.axis('off')
                 ax_bin.axis('off')
+                ax_overlay.axis('off')
                 continue
             
             # Get data
@@ -336,18 +378,19 @@ class VisibleChannelViewer:
             
             # Display original image
             im_orig = ax_orig.imshow(zoom_data, origin='lower', cmap='gray')
-            ax_orig.set_title(f'Channel {channel} - Original', fontsize=10, fontweight='bold')
+            ax_orig.set_title(f'Channel {channel} - Original', fontsize=8, fontweight='bold', pad=2)
             ax_orig.axis('off')
-            cbar_orig = plt.colorbar(im_orig, ax=ax_orig, fraction=0.046, pad=0.04)
-            cbar_orig.set_label('Radiance', fontsize=8)
+            cbar_orig = plt.colorbar(im_orig, ax=ax_orig, fraction=0.030, pad=0.02)
+            cbar_orig.set_label('Radiance', fontsize=7)
+            cbar_orig.ax.tick_params(labelsize=6)
             self.colorbars.append(cbar_orig)
             
             # Add histogram button for original image
             bbox_orig = ax_orig.get_position()
-            button_ax_orig = plt.axes([bbox_orig.x0 + bbox_orig.width*0.15, bbox_orig.y0 - 0.040, 
-                                      bbox_orig.width*0.7, 0.018])
+            button_ax_orig = plt.axes([bbox_orig.x0 + bbox_orig.width*0.15, bbox_orig.y0 - 0.032, 
+                                      bbox_orig.width*0.7, 0.015])
             hist_btn_orig = Button(button_ax_orig, 'Histogram', color='#87CEEB', hovercolor='#4682B4')
-            hist_btn_orig.label.set_fontsize(8)
+            hist_btn_orig.label.set_fontsize(7)
             hist_btn_orig.on_clicked(lambda event, ch=channel: self.show_histogram(f'{ch}_orig'))
             self.hist_buttons.append(hist_btn_orig)
             
@@ -363,24 +406,26 @@ class VisibleChannelViewer:
                 'threshold': threshold
             }
             
+            # Show white background first, then classification on top
+            ax_bin.imshow(np.ones_like(binary_data), origin='lower', cmap='gray', vmin=0, vmax=1)
             im_bin = ax_bin.imshow(binary_data, origin='lower', cmap=self.binary_cmap,
                                   vmin=0, vmax=1)
             ax_bin.set_title(f'Channel {channel} - Classification\nThreshold: {threshold:.1f}',
-                           fontsize=10, fontweight='bold')
+                           fontsize=8, fontweight='bold', pad=2)
             ax_bin.axis('off')
             
             # Add custom colorbar labels
-            cbar_bin = plt.colorbar(im_bin, ax=ax_bin, fraction=0.046, pad=0.04,
+            cbar_bin = plt.colorbar(im_bin, ax=ax_bin, fraction=0.030, pad=0.02,
                                    ticks=[0.25, 0.75])
-            cbar_bin.ax.set_yticklabels(['Below', 'Above'], fontsize=8)
+            cbar_bin.ax.set_yticklabels(['Transparent', 'Red'], fontsize=6)
             self.colorbars.append(cbar_bin)
             
             # Add histogram button for binary image
             bbox_bin = ax_bin.get_position()
-            button_ax_bin = plt.axes([bbox_bin.x0 + bbox_bin.width*0.15, bbox_bin.y0 - 0.040, 
-                                     bbox_bin.width*0.7, 0.018])
+            button_ax_bin = plt.axes([bbox_bin.x0 + bbox_bin.width*0.15, bbox_bin.y0 - 0.032, 
+                                     bbox_bin.width*0.7, 0.015])
             hist_btn_bin = Button(button_ax_bin, 'Histogram', color='#87CEEB', hovercolor='#4682B4')
-            hist_btn_bin.label.set_fontsize(8)
+            hist_btn_bin.label.set_fontsize(7)
             hist_btn_bin.on_clicked(lambda event, ch=channel: self.show_histogram(f'{ch}_bin'))
             self.hist_buttons.append(hist_btn_bin)
             
@@ -395,6 +440,53 @@ class VisibleChannelViewer:
             ax_bin.text(0.02, 0.98, stats_text, transform=ax_bin.transAxes,
                        fontsize=9, verticalalignment='top',
                        bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+            
+            # Create overlay image (original + transparent classification)
+            im_overlay = ax_overlay.imshow(zoom_data, origin='lower', cmap='gray')
+            
+            # Create RGBA overlay for the classification
+            # Red for above threshold, Transparent for below threshold
+            overlay_rgba = np.zeros((*binary_data.shape, 4))
+            
+            # Transparent for below threshold (0,0,0,0)
+            below_mask = binary_data == 0
+            overlay_rgba[below_mask] = [0, 0, 0, 0]  # Fully transparent
+            
+            # Red for above threshold (1,0,0,alpha)
+            above_mask = binary_data == 1
+            overlay_rgba[above_mask] = [1, 0, 0, 0.5]  # Red with 50% opacity
+            
+            # Overlay the classification on top
+            ax_overlay.imshow(overlay_rgba, origin='lower')
+            ax_overlay.set_title(f'Channel {channel} - Overlay\nOriginal + Classification',
+                               fontsize=8, fontweight='bold', pad=2)
+            ax_overlay.axis('off')
+            
+            # No colorbar for overlay (it's a composite image)
+            
+            # Store overlay data for histograms (use the same original data)
+            self.current_display_data[f'{channel}_overlay'] = {
+                'data': zoom_data,
+                'label': f'Channel {channel} - Overlay',
+                'type': 'radiance'
+            }
+            
+            # Add histogram button for overlay image
+            bbox_overlay = ax_overlay.get_position()
+            button_ax_overlay = plt.axes([bbox_overlay.x0 + bbox_overlay.width*0.15, bbox_overlay.y0 - 0.032, 
+                                         bbox_overlay.width*0.7, 0.015])
+            hist_btn_overlay = Button(button_ax_overlay, 'Histogram', color='#87CEEB', hovercolor='#4682B4')
+            hist_btn_overlay.label.set_fontsize(7)
+            hist_btn_overlay.on_clicked(lambda event, ch=channel: self.show_histogram(f'{ch}_overlay'))
+            self.hist_buttons.append(hist_btn_overlay)
+            
+            # Calculate and display MSE
+            mse = self.calculate_mse(zoom_data, threshold)
+            mse_text = f'MSE: {mse:.4f}'
+            ax_overlay.text(0.98, 0.98, mse_text, transform=ax_overlay.transAxes,
+                          fontsize=9, verticalalignment='top', horizontalalignment='right',
+                          bbox=dict(boxstyle='round', facecolor='yellow', alpha=0.8),
+                          fontweight='bold')
         
         # Update coordinate displays
         lat, lon, zen = self.geo.locate(self.x_center, self.y_center)
@@ -411,11 +503,11 @@ class VisibleChannelViewer:
         self.lat_box.set_val(lat_str)
         self.lon_box.set_val(lon_str)
         
-        # Add main title
+        # Add main title (smaller to save space)
         self.fig.suptitle(f'Visible Channel Viewer - Zone {self.current_zone:02d} | '
                          f'Center: ({self.x_center}, {self.y_center}) px = ({lat_str}°N, {lon_str}°E) | '
                          f'Box: {self.box_size}px',
-                         fontsize=12, fontweight='bold')
+                         fontsize=10, fontweight='bold', y=0.995)
         
         self.fig.canvas.draw_idle()
     
@@ -450,8 +542,17 @@ class VisibleChannelViewer:
     def update_threshold(self, channel, text):
         try:
             self.thresholds[channel] = float(text)
+            
+            # Calculate MSE for this channel with new threshold
+            if self.images[channel] is not None:
+                data = self.images[channel]['data']
+                zoom_data = self.get_zoom_region(data)
+                mse = self.calculate_mse(zoom_data, self.thresholds[channel])
+                print(f"Ch{channel} threshold updated to {self.thresholds[channel]:.1f} | MSE: {mse:.4f}")
+            else:
+                print(f"Ch{channel} threshold updated to {self.thresholds[channel]:.1f}")
+            
             self.update_display()
-            print(f"Ch{channel} threshold updated to {self.thresholds[channel]:.1f}")
         except ValueError:
             print(f"Invalid threshold for Ch{channel}: {text}")
     
@@ -543,7 +644,7 @@ class VisibleChannelViewer:
             
             hist_ax.bar(['Below Threshold', 'Above Threshold'], 
                        [below_count, above_count],
-                       color=['blue', 'red'], alpha=0.7, edgecolor='black')
+                       color=['lightgray', 'red'], alpha=0.7, edgecolor='black')
             hist_ax.set_ylabel('Pixel Count', fontsize=12)
             hist_ax.set_title(f'{label}\nThreshold: {data_info["threshold"]:.1f} | '
                             f'Zone {self.current_zone:02d}',
@@ -551,10 +652,10 @@ class VisibleChannelViewer:
             
             # Add percentage labels on bars
             total = len(data_flat)
-            for i, (count, color) in enumerate([(below_count, 'blue'), (above_count, 'red')]):
+            for i, (count, color) in enumerate([(below_count, 'gray'), (above_count, 'red')]):
                 pct = 100 * count / total
                 hist_ax.text(i, count, f'{count:,}\n({pct:.1f}%)', 
-                           ha='center', va='bottom', fontsize=10, fontweight='bold')
+                           ha='center', va='bottom', fontsize=10, fontweight='bold', color=color)
             
         else:
             # For radiance data, show histogram
@@ -584,10 +685,12 @@ class VisibleChannelViewer:
 
 if __name__ == '__main__':
     print("Visible Channel Viewer (Channels 1, 2, 3)")
-    print("=" * 60)
+    print("=" * 70)
     print("\nFeatures:")
     print("  - Left column: Original radiance images")
-    print("  - Right column: Binary classification (Blue=Below, Red=Above)")
+    print("  - Middle column: Binary classification (Red=Above threshold, Transparent=Below)")
+    print("  - Right column: Overlay (red classification on top of original)")
+    print("    * MSE displayed in top-right corner (classification quality metric)")
     print("\nControls:")
     print("  - Zone Slider: Select time/zone (z00-z24)")
     print("  - X(px)/Y(px)/Box: Set zoom region center (pixels) and size")
@@ -599,6 +702,10 @@ if __name__ == '__main__':
     print("  - Histogram buttons: Click to view histogram for each image")
     print("    * Original images: Show radiance distribution")
     print("    * Binary images: Show count of pixels above/below threshold")
+    print("\nMSE Metric:")
+    print("  - Measures classification quality (lower is better)")
+    print("  - Calculated as MSE between binary classification and normalized pixels")
+    print("  - Updates automatically when threshold changes")
     print("\nGeographic Calibration:")
     print("  - Title bar shows pixel coordinates and lat/lon for current center")
     print("  - You can input either pixels OR lat/lon to set the view center")
