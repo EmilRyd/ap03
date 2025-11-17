@@ -355,7 +355,7 @@ print('No text input required - just press Enter at each prompt\n')
 plt.ion()  
 
 input('1. Read in and display Vis image ... [Press Enter]')  
-c1 = Image('/Users/emilryd/Personal/school/Oxford/Computing and Data Analysis/third year/AP03/Mini project data/channel_1/msg_c01_z12.img')  # Load visible channel image
+c1 = Image('data/channel_1/msg_c01_z12.img')  # Load visible channel image
 c1.disp()                      # display image
 
 print('\n2. Select a subset of the image ...')
@@ -386,7 +386,7 @@ c1b = c1.clip(box,title='Selected part of Vis image')
 c1b.disp()
 
 input('4. Load matching Ch9 infrared window image... [Press Enter]')
-c9 = Image('/Users/emilryd/Personal/school/Oxford/Computing and Data Analysis/third year/AP03/Mini project data/channel_9/msg_c09_z12.img')  # Load Ch9 image
+c9 = Image('data/channel_9/msg_c09_z12.img')  # Load Ch9 image
 c9b = c9.clip(box,title='Corresponding part of Ch9 image')
 c9b.disp(window=2)   # display in a different window
 
@@ -463,7 +463,7 @@ plt.hist(c9vec,range=[280,300],bins=51)
 plt.show()
 
 input('10. Load Geographical Calibration data ... [Press Enter]')
-geo = Geo('/Users/emilryd/Personal/school/Oxford/Computing and Data Analysis/third year/AP03/Mini project data/example/geo.txt') 
+geo = Geo('geo.txt') 
 
 input('10. Print Lat,Lon of lower left and upper right of box ... [Press Enter]')
 (latmin,lonmin,zenmin) = geo.locate(box2['xmin'],box2['ymin'])

@@ -13,8 +13,8 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, TextBox, Button, CheckButtons
 from matplotlib.colors import LinearSegmentedColormap
 
-# Base directory for image files
-BASE_DIR = '/Users/emilryd/Personal/school/Oxford/Computing and Data Analysis/third year/AP03/mini_project_data'
+# Base directory for image files (relative to mini_project folder)
+BASE_DIR = 'data'
 
 # Channel wavelengths (microns) for brightness temperature conversion
 WAVELENGTHS = {
@@ -42,6 +42,7 @@ class ImageViewer:
         
         # Storage for loaded images
         self.images = {}  # Will store Image objects for each channel
+        self.colorbars = []  # Store colorbar references
         
         # Setup the figure and axes
         self.setup_figure()
@@ -119,11 +120,15 @@ class ImageViewer:
     
     def load_image(self, filepath):
         """Load a single image file"""
-        with open(filepath) as f:
+        with open(filepath, 'r') as f:
             title = f.readline().strip()
-            nx, ny = np.fromfile(f, dtype=int, count=2, sep=" ")
-            imgdata = np.fromfile(f, dtype=float, count=nx*ny, sep=" ")
-            data = imgdata.reshape((ny, nx))
+            nx, ny = [int(x) for x in f.readline().split()]
+            imgdata = []
+            for line in f:
+                line = line.strip()
+                if line:  # Skip empty lines
+                    imgdata.extend([float(x) for x in line.split()])
+            data = np.array(imgdata).reshape((ny, nx))
         return {'data': data, 'nx': nx, 'ny': ny, 'title': title}
     
     def brightness_temperature(self, radiance, wavelength):
@@ -157,6 +162,14 @@ class ImageViewer:
     
     def update_display(self):
         """Update all channel displays"""
+        # Remove old colorbars BEFORE clearing axes
+        for cbar in self.colorbars:
+            try:
+                cbar.remove()
+            except (KeyError, ValueError):
+                pass  # Already removed
+        self.colorbars = []
+        
         for i, channel in enumerate(range(1, 12)):
             ax = self.axes[i]
             ax.clear()
@@ -198,8 +211,9 @@ class ImageViewer:
             im = ax.imshow(zoom_data, origin='lower', cmap=cmap, vmin=vmin, vmax=vmax)
             ax.set_title(label, fontsize=9)
             
-            # Add colorbar
-            plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            # Add colorbar and store reference
+            cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            self.colorbars.append(cbar)
         
         # Update title
         self.fig.suptitle(
