@@ -1,0 +1,49 @@
+! Spectral response of SEVIRI Ch1 (12microns)
+! Numbers taken from file downloaded from
+! https://www.eumetsat.int/website/home/Data/Products/Calibration/Instrumentstatusandcalibration/index.html#met11seviri
+! specifically PFM 95K, undersampled to 0.2microns and truncated
+! wavelength, response
+42 = number of points
+11.16, 0.001
+11.20, 0.005
+11.24, 0.010
+11.28, 0.023
+11.32, 0.046
+11.36, 0.089
+11.40, 0.180
+11.44, 0.342
+11.48, 0.576
+11.52, 0.803
+11.56, 0.932
+11.60, 0.987
+11.64, 1.000
+11.68, 0.983
+11.72, 0.961
+11.76, 0.966
+11.80, 0.970
+11.84, 0.982
+11.88, 0.990
+11.92, 0.998
+11.96, 0.977
+12.00, 0.955
+12.04, 0.930
+12.08, 0.926
+12.12, 0.932
+12.16, 0.890
+12.20, 0.870
+12.24, 0.884
+12.28, 0.881
+12.32, 0.846
+12.36, 0.783
+12.40, 0.630
+12.44, 0.434
+12.48, 0.276
+12.52, 0.165
+12.56, 0.093
+12.60, 0.051
+12.64, 0.025
+12.68, 0.017
+12.72, 0.011
+12.76, 0.005
+12.80, 0.002
+----
