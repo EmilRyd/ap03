@@ -2,3 +2,4 @@ mini_project/data
 mini_project/ap03_example.py
 mini_project/rohan.py
 *.img
+.DS_Store
