@@ -30,9 +30,9 @@ class MultiChannelViewer:
     def __init__(self):
         # Initial parameters
         self.current_zone = 12
-        self.x_center = 1856
-        self.y_center = 1856
-        self.box_size = 3712  # Full image
+        self.x_center = 300
+        self.y_center = 800
+        self.box_size = 100
         self.show_brightness_temp = True
         
         # Storage
@@ -41,13 +41,14 @@ class MultiChannelViewer:
         self.hist_buttons = []  # Store histogram button references
         self.current_display_data = {}  # Store currently displayed data for histograms
         
-        # Setup figure with 3x4 grid
-        self.fig = plt.figure(figsize=(18, 13))
-        gs = self.fig.add_gridspec(4, 4, left=0.03, right=0.97, top=0.98, 
-                                   bottom=0.18, hspace=0.20, wspace=0.2)
+        # Setup figure with 3x4 grid (sized for 13" MacBook)
+        self.fig = plt.figure(figsize=(13, 9))
+        gs = self.fig.add_gridspec(4, 4, left=0.02, right=0.99, top=0.99, 
+                                   bottom=0.14, hspace=0.50, wspace=0.15)
         
         self.axes = []
         self.button_axes = []  # Store button axes
+        
         for i in range(11):
             row = i // 4
             col = i % 4
@@ -58,35 +59,35 @@ class MultiChannelViewer:
             # Create histogram button for each channel (will position in update_display)
             self.hist_buttons.append(None)
         
-        # Control widgets
+        # Control widgets (more compact layout)
         # Zone slider
-        ax_zone = plt.axes([0.15, 0.11, 0.7, 0.02])
+        ax_zone = plt.axes([0.12, 0.09, 0.76, 0.018])
         self.zone_slider = Slider(ax_zone, 'Zone', 0, 24, 
                                   valinit=self.current_zone, valstep=1)
         self.zone_slider.on_changed(self.update_zone)
         
         # X center
-        ax_x = plt.axes([0.15, 0.06, 0.1, 0.025])
+        ax_x = plt.axes([0.12, 0.045, 0.1, 0.022])
         self.x_box = TextBox(ax_x, 'X Center', initial=str(self.x_center))
         self.x_box.on_submit(self.update_x)
         
         # Y center
-        ax_y = plt.axes([0.35, 0.06, 0.1, 0.025])
+        ax_y = plt.axes([0.32, 0.045, 0.1, 0.022])
         self.y_box = TextBox(ax_y, 'Y Center', initial=str(self.y_center))
         self.y_box.on_submit(self.update_y)
         
         # Box size
-        ax_box = plt.axes([0.55, 0.06, 0.1, 0.025])
+        ax_box = plt.axes([0.52, 0.045, 0.1, 0.022])
         self.box_box = TextBox(ax_box, 'Box Size', initial=str(self.box_size))
         self.box_box.on_submit(self.update_box_size)
         
         # Reset button
-        ax_reset = plt.axes([0.75, 0.06, 0.1, 0.025])
+        ax_reset = plt.axes([0.72, 0.045, 0.16, 0.022])
         self.reset_button = Button(ax_reset, 'Reset View')
         self.reset_button.on_clicked(self.reset_view)
         
         # Brightness temperature toggle
-        ax_toggle = plt.axes([0.15, 0.015, 0.2, 0.025])
+        ax_toggle = plt.axes([0.12, 0.008, 0.25, 0.022])
         self.temp_check = CheckButtons(ax_toggle, ['Show Brightness Temp'], 
                                        [self.show_brightness_temp])
         self.temp_check.on_clicked(self.toggle_brightness_temp)
@@ -222,25 +223,22 @@ class MultiChannelViewer:
             
             # Display
             im = ax.imshow(zoom_data, origin='lower', cmap=cmap, vmin=vmin, vmax=vmax)
-            ax.set_title(label, fontsize=8, pad=2)
+            ax.set_title(label, fontsize=7, pad=1)
             
             # Add colorbar (smaller to give more space to images)
-            cbar = plt.colorbar(im, ax=ax, fraction=0.035, pad=0.03)
+            cbar = plt.colorbar(im, ax=ax, fraction=0.030, pad=0.02)
             self.colorbars.append(cbar)
             
-            # Add histogram button below the image
+            # Add histogram button below the image (with more spacing)
             bbox = ax.get_position()
-            button_ax = plt.axes([bbox.x0 + bbox.width*0.3, bbox.y0 - 0.035, 
-                                 bbox.width*0.4, 0.02])
-            hist_btn = Button(button_ax, 'Histogram', color='lightgray', hovercolor='gray')
+            button_ax = plt.axes([bbox.x0 + bbox.width*0.15, bbox.y0 - 0.045, 
+                                 bbox.width*0.7, 0.020])
+            hist_btn = Button(button_ax, 'Histogram', color='#87CEEB', hovercolor='#4682B4')
+            hist_btn.label.set_fontsize(9)
             hist_btn.on_clicked(lambda event, ch=channel: self.show_histogram(ch))
             self.hist_buttons[i] = hist_btn
         
-        # Update main title
-        self.fig.suptitle(
-            f'Zone {self.current_zone:02d} | Center: ({self.x_center}, {self.y_center}) | Box: {self.box_size}px',
-            fontsize=12, fontweight='bold', y=0.995
-        )
+        # No main title - removed for cleaner look
         
         self.fig.canvas.draw_idle()
     
@@ -273,9 +271,9 @@ class MultiChannelViewer:
             print(f"Invalid box size: {text}")
     
     def reset_view(self, event):
-        self.x_center = 1856
-        self.y_center = 1856
-        self.box_size = 3712
+        self.x_center = 300
+        self.y_center = 800
+        self.box_size = 100
         self.x_box.set_val(str(self.x_center))
         self.y_box.set_val(str(self.y_center))
         self.box_box.set_val(str(self.box_size))
