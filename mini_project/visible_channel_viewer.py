@@ -189,26 +189,26 @@ class VisibleChannelViewer:
         
         # Control widgets at bottom
         # Zone slider
-        ax_zone = plt.axes([0.15, 0.155, 0.70, 0.02])
+        ax_zone = plt.axes([0.15, 0.155, 0.70, 0.02]) # type: ignore
         self.zone_slider = Slider(ax_zone, 'Zone', 0, 24, 
                                   valinit=self.current_zone, valstep=1)
         self.zone_slider.on_changed(self.update_zone)
         
         # X, Y, Box size controls (in one row) - Pixel coordinates
-        ax_x = plt.axes([0.10, 0.105, 0.10, 0.025])
+        ax_x = plt.axes([0.10, 0.105, 0.10, 0.025]) # type: ignore
         self.x_box = TextBox(ax_x, 'X(px)', initial=str(self.x_center))
         self.x_box.on_submit(self.update_x)
         
-        ax_y = plt.axes([0.28, 0.105, 0.10, 0.025])
+        ax_y = plt.axes([0.28, 0.105, 0.10, 0.025]) # type: ignore
         self.y_box = TextBox(ax_y, 'Y(px)', initial=str(self.y_center))
         self.y_box.on_submit(self.update_y)
         
-        ax_box = plt.axes([0.46, 0.105, 0.10, 0.025])
+        ax_box = plt.axes([0.46, 0.105, 0.10, 0.025]) # type: ignore
         self.box_box = TextBox(ax_box, 'Box', initial=str(self.box_size))
         self.box_box.on_submit(self.update_box_size)
         
         # Reset button
-        ax_reset = plt.axes([0.64, 0.105, 0.08, 0.025])
+        ax_reset = plt.axes([0.64, 0.105, 0.08, 0.025]) # type: ignore
         self.reset_button = Button(ax_reset, 'Reset')
         self.reset_button.on_clicked(self.reset_view)
         
@@ -218,16 +218,16 @@ class VisibleChannelViewer:
         lat_str = f'{lat:.2f}' if not np.isnan(lat) else 'N/A'
         lon_str = f'{lon:.2f}' if not np.isnan(lon) else 'N/A'
         
-        ax_lat = plt.axes([0.10, 0.055, 0.13, 0.025])
+        ax_lat = plt.axes([0.10, 0.055, 0.13, 0.025]) # type: ignore
         self.lat_box = TextBox(ax_lat, 'Lat(°N)', initial=lat_str)
         self.lat_box.on_submit(self.update_from_lat)
         
-        ax_lon = plt.axes([0.28, 0.055, 0.13, 0.025])
+        ax_lon = plt.axes([0.28, 0.055, 0.13, 0.025]) # type: ignore
         self.lon_box = TextBox(ax_lon, 'Lon(°E)', initial=lon_str)
         self.lon_box.on_submit(self.update_from_lon)
         
         # Add a text display for current coordinates
-        ax_coords = plt.axes([0.46, 0.055, 0.26, 0.025])
+        ax_coords = plt.axes([0.46, 0.055, 0.26, 0.025]) # type: ignore
         ax_coords.axis('off')
         self.coords_text = ax_coords.text(0.0, 0.5, '', transform=ax_coords.transAxes,
                                           fontsize=9, verticalalignment='center')
@@ -240,7 +240,7 @@ class VisibleChannelViewer:
         ]
         
         for i, channel in enumerate([1, 2, 3]):
-            ax_thresh = plt.axes(threshold_positions[i])
+            ax_thresh = plt.axes(threshold_positions[i]) # type: ignore
             thresh_box = TextBox(ax_thresh, f'Ch{channel} Thr.', 
                                initial=str(self.thresholds[channel]))
             thresh_box.on_submit(lambda text, ch=channel: self.update_threshold(ch, text))
@@ -388,7 +388,7 @@ class VisibleChannelViewer:
             # Add histogram button for original image
             bbox_orig = ax_orig.get_position()
             button_ax_orig = plt.axes([bbox_orig.x0 + bbox_orig.width*0.15, bbox_orig.y0 - 0.032, 
-                                      bbox_orig.width*0.7, 0.015])
+                                      bbox_orig.width*0.7, 0.015]) # type: ignore
             hist_btn_orig = Button(button_ax_orig, 'Histogram', color='#87CEEB', hovercolor='#4682B4')
             hist_btn_orig.label.set_fontsize(7)
             hist_btn_orig.on_clicked(lambda event, ch=channel: self.show_histogram(f'{ch}_orig'))
@@ -423,7 +423,7 @@ class VisibleChannelViewer:
             # Add histogram button for binary image
             bbox_bin = ax_bin.get_position()
             button_ax_bin = plt.axes([bbox_bin.x0 + bbox_bin.width*0.15, bbox_bin.y0 - 0.032, 
-                                     bbox_bin.width*0.7, 0.015])
+                                     bbox_bin.width*0.7, 0.015]) # type: ignore
             hist_btn_bin = Button(button_ax_bin, 'Histogram', color='#87CEEB', hovercolor='#4682B4')
             hist_btn_bin.label.set_fontsize(7)
             hist_btn_bin.on_clicked(lambda event, ch=channel: self.show_histogram(f'{ch}_bin'))
@@ -474,7 +474,7 @@ class VisibleChannelViewer:
             # Add histogram button for overlay image
             bbox_overlay = ax_overlay.get_position()
             button_ax_overlay = plt.axes([bbox_overlay.x0 + bbox_overlay.width*0.15, bbox_overlay.y0 - 0.032, 
-                                         bbox_overlay.width*0.7, 0.015])
+                                         bbox_overlay.width*0.7, 0.015]) # type: ignore
             hist_btn_overlay = Button(button_ax_overlay, 'Histogram', color='#87CEEB', hovercolor='#4682B4')
             hist_btn_overlay.label.set_fontsize(7)
             hist_btn_overlay.on_clicked(lambda event, ch=channel: self.show_histogram(f'{ch}_overlay'))
@@ -632,7 +632,7 @@ class VisibleChannelViewer:
         
         # Create new figure for histogram
         hist_fig, hist_ax = plt.subplots(figsize=(8, 6))
-        hist_fig.canvas.manager.set_window_title(f'{label} Histogram')
+        hist_fig.canvas.manager.set_window_title(f'{label} Histogram') # type: ignore
         
         # Flatten data
         data_flat = data.flatten()
