@@ -61,33 +61,33 @@ class MultiChannelViewer:
         
         # Control widgets (more compact layout)
         # Zone slider
-        ax_zone = plt.axes([0.12, 0.09, 0.76, 0.018])
+        ax_zone = plt.axes([0.12, 0.09, 0.76, 0.018]) # type: ignore
         self.zone_slider = Slider(ax_zone, 'Zone', 0, 24, 
                                   valinit=self.current_zone, valstep=1)
         self.zone_slider.on_changed(self.update_zone)
         
         # X center
-        ax_x = plt.axes([0.12, 0.045, 0.1, 0.022])
+        ax_x = plt.axes([0.12, 0.045, 0.1, 0.022]) # type: ignore
         self.x_box = TextBox(ax_x, 'X Center', initial=str(self.x_center))
         self.x_box.on_submit(self.update_x)
         
         # Y center
-        ax_y = plt.axes([0.32, 0.045, 0.1, 0.022])
+        ax_y = plt.axes([0.32, 0.045, 0.1, 0.022]) # type: ignore
         self.y_box = TextBox(ax_y, 'Y Center', initial=str(self.y_center))
         self.y_box.on_submit(self.update_y)
         
         # Box size
-        ax_box = plt.axes([0.52, 0.045, 0.1, 0.022])
+        ax_box = plt.axes([0.52, 0.045, 0.1, 0.022]) # type: ignore
         self.box_box = TextBox(ax_box, 'Box Size', initial=str(self.box_size))
         self.box_box.on_submit(self.update_box_size)
         
         # Reset button
-        ax_reset = plt.axes([0.72, 0.045, 0.16, 0.022])
+        ax_reset = plt.axes([0.72, 0.045, 0.16, 0.022]) # type: ignore
         self.reset_button = Button(ax_reset, 'Reset View')
         self.reset_button.on_clicked(self.reset_view)
         
         # Brightness temperature toggle
-        ax_toggle = plt.axes([0.12, 0.008, 0.25, 0.022])
+        ax_toggle = plt.axes([0.12, 0.008, 0.25, 0.022]) # type: ignore
         self.temp_check = CheckButtons(ax_toggle, ['Show Brightness Temp'], 
                                        [self.show_brightness_temp])
         self.temp_check.on_clicked(self.toggle_brightness_temp)
@@ -232,7 +232,7 @@ class MultiChannelViewer:
             # Add histogram button below the image (with more spacing)
             bbox = ax.get_position()
             button_ax = plt.axes([bbox.x0 + bbox.width*0.15, bbox.y0 - 0.045, 
-                                 bbox.width*0.7, 0.020])
+                                 bbox.width*0.7, 0.020]) # type: ignore
             hist_btn = Button(button_ax, 'Histogram', color='#87CEEB', hovercolor='#4682B4')
             hist_btn.label.set_fontsize(9)
             hist_btn.on_clicked(lambda event, ch=channel: self.show_histogram(ch))
@@ -296,7 +296,7 @@ class MultiChannelViewer:
         
         # Create new figure for histogram
         hist_fig, hist_ax = plt.subplots(figsize=(8, 6))
-        hist_fig.canvas.manager.set_window_title(f'Channel {channel} Histogram')
+        hist_fig.canvas.manager.set_window_title(f'Channel {channel} Histogram') # type: ignore
         
         # Flatten data
         data_flat = data.flatten()
