@@ -1,14 +1,13 @@
 """
-Normalized Brightness-Temperature Difference Viewer
+Brightness-Temperature Difference Viewer
 
-Plots normalized brightness temperature differences for scientifically
-relevant MSG channel pairs while retaining the interaction style of the
-multi-channel viewer.
+Plots brightness temperature differences for scientifically relevant MSG
+channel pairs while retaining the interaction style of the multi-channel viewer.
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider, TextBox, Button, CheckButtons
+from matplotlib.widgets import Slider, TextBox, Button
 
 BASE_DIR = 'data'
 
@@ -27,11 +26,15 @@ WAVELENGTHS = {
     11: 13.35   # CO2 - cloud height
 }
 
-# Metadata describing physically relevant pairs
+# Metadata describing physically relevant pairs (ΔT = Channel A - Channel B)
 CHANNEL_PAIRS = [
     {
-        'channels': (4, 10),
-        'description': 'Nighttime/low cloud & forest fires vs surface temperature'
+        'channels': (4, 5),
+        'description': 'Nighttime low cloud vs upper-troposphere moisture'
+    },
+    {
+        'channels': (4, 7),
+        'description': 'Nighttime low cloud vs thin cirrus discrimination'
     },
     {
         'channels': (5, 6),
@@ -39,7 +42,7 @@ CHANNEL_PAIRS = [
     },
     {
         'channels': (7, 9),
-        'description': 'Thin cirrus discrimination vs surface temperature'
+        'description': 'Thin cirrus vs surface temperature'
     },
     {
         'channels': (8, 10),
@@ -52,16 +55,8 @@ CHANNEL_PAIRS = [
 ]
 
 
-def normalized_bt_diff(bt_a, bt_b):
-    """Return raw and normalized brightness-temperature differences."""
-    diff = bt_a - bt_b
-    denom = bt_a + bt_b
-    norm = np.divide(diff, denom, out=np.zeros_like(diff), where=denom != 0)
-    return diff, norm
-
-
-class NormalizedBTDiffViewer:
-    """Viewer for normalized brightness-temperature differences between MSG pairs."""
+class BTDifferenceViewer:
+    """Viewer for brightness-temperature differences between MSG channel pairs."""
 
     def __init__(self):
         # Initial parameters
@@ -69,7 +64,6 @@ class NormalizedBTDiffViewer:
         self.x_center = 300
         self.y_center = 800
         self.box_size = 100
-        self.show_normalized = True
 
         # Storage
         self.images = {}  # {channel: image_data}
@@ -77,10 +71,10 @@ class NormalizedBTDiffViewer:
         self.hist_buttons = []  # Store histogram button references
         self.current_display_data = {}  # Store currently displayed data for histograms
 
-        # 3x2 grid holds the five channel pairs comfortably
-        self.fig = plt.figure(figsize=(12, 9))
+        # 3x2 grid holds the six channel pairs comfortably
+        self.fig = plt.figure(figsize=(13, 9))
         gs = self.fig.add_gridspec(3, 2, left=0.05, right=0.98, top=0.98,
-                                   bottom=0.14, hspace=0.40, wspace=0.20)
+                                   bottom=0.14, hspace=0.45, wspace=0.20)
 
         self.axes = []
 
@@ -113,11 +107,6 @@ class NormalizedBTDiffViewer:
         ax_reset = plt.axes([0.72, 0.045, 0.16, 0.022])  # type: ignore
         self.reset_button = Button(ax_reset, 'Reset View')
         self.reset_button.on_clicked(self.reset_view)
-
-        ax_toggle = plt.axes([0.12, 0.008, 0.25, 0.022])  # type: ignore
-        self.temp_check = CheckButtons(ax_toggle, ['Show Normalized ΔT'],
-                                       [self.show_normalized])
-        self.temp_check.on_clicked(self.toggle_normalized_display)
 
         # Load and display
         self.load_zone(self.current_zone)
@@ -215,20 +204,19 @@ class NormalizedBTDiffViewer:
             wavelength_b = WAVELENGTHS[ch_b]
             bt_a = self.brightness_temperature(zoom_a, wavelength_a)
             bt_b = self.brightness_temperature(zoom_b, wavelength_b)
-            diff, norm = normalized_bt_diff(bt_a, bt_b)
-            diff = np.nan_to_num(diff, nan=0.0, posinf=0.0, neginf=0.0)
-            norm = np.nan_to_num(norm, nan=0.0, posinf=0.0, neginf=0.0)
 
-            display_data = norm if self.show_normalized else diff
+            diff = bt_a - bt_b
+            diff = np.nan_to_num(diff, nan=0.0, posinf=0.0, neginf=0.0)
+
             cmap = 'RdBu_r'
-            vmin, vmax = (-1, 1) if self.show_normalized else (np.min(diff), np.max(diff))
-            if vmin == vmax:
-                vmin -= 1e-6
-                vmax += 1e-6
+            max_abs = np.max(np.abs(diff))
+            if max_abs == 0:
+                max_abs = 1e-6
+            vmin, vmax = -max_abs, max_abs
 
             title = (f'Ch{ch_a} ({wavelength_a}μm) vs Ch{ch_b} ({wavelength_b}μm)\n'
                      f'{pair["description"]}')
-            im = ax.imshow(display_data, origin='lower', cmap=cmap, vmin=vmin, vmax=vmax)
+            im = ax.imshow(diff, origin='lower', cmap=cmap, vmin=vmin, vmax=vmax)
             ax.set_title(title, fontsize=8, pad=4)
 
             stats_text = (f'ΔT mean: {diff.mean():.2f}K\n'
@@ -238,11 +226,10 @@ class NormalizedBTDiffViewer:
                     bbox=dict(facecolor='black', alpha=0.4, boxstyle='round'))
 
             cbar = plt.colorbar(im, ax=ax, fraction=0.035, pad=0.02)
-            cbar.set_label('Normalized ΔT' if self.show_normalized else 'ΔT [K]', fontsize=8)
+            cbar.set_label('ΔT [K]', fontsize=8)
             self.colorbars.append(cbar)
 
             self.current_display_data[pair_key] = {
-                'norm_data': norm,
                 'diff_data': diff,
                 'title': title,
                 'zone': self.current_zone,
@@ -296,10 +283,6 @@ class NormalizedBTDiffViewer:
         self.box_box.set_val(str(self.box_size))
         self.update_display()
 
-    def toggle_normalized_display(self, label):
-        self.show_normalized = not self.show_normalized
-        self.update_display()
-
     def show_histogram(self, pair_key):
         """Show histogram for a specific channel pair in a new window."""
         if pair_key not in self.current_display_data:
@@ -307,7 +290,6 @@ class NormalizedBTDiffViewer:
             return
 
         data_info = self.current_display_data[pair_key]
-        norm_data = data_info['norm_data']
         diff_data = data_info['diff_data']
         ch_a, ch_b = data_info['channels']
 
@@ -315,11 +297,11 @@ class NormalizedBTDiffViewer:
         hist_fig.canvas.manager.set_window_title(
             f'Channel Pair {ch_a}-{ch_b} Histogram')  # type: ignore
 
-        norm_flat = norm_data.flatten()
-        hist_ax.hist(norm_flat, bins=50, color='steelblue',
+        diff_flat = diff_data.flatten()
+        hist_ax.hist(diff_flat, bins=50, color='steelblue',
                      edgecolor='black', alpha=0.7)
 
-        hist_ax.set_xlabel('Normalized ΔT', fontsize=12)
+        hist_ax.set_xlabel('ΔT [K]', fontsize=12)
         hist_ax.set_ylabel('Frequency', fontsize=12)
         hist_ax.set_title(
             f'{data_info["title"]}\nZone {data_info["zone"]:02d} | '
@@ -328,13 +310,11 @@ class NormalizedBTDiffViewer:
             fontsize=11, fontweight='bold')
         hist_ax.grid(True, alpha=0.3)
 
-        diff_flat = diff_data.flatten()
         stats_text = (
             f'ΔT mean: {diff_flat.mean():.2f}K\n'
             f'ΔT std: {diff_flat.std():.2f}K\n'
             f'ΔT min/max: {diff_flat.min():.2f}/{diff_flat.max():.2f}K\n'
-            f'Norm min/max: {norm_flat.min():.2f}/{norm_flat.max():.2f}\n'
-            f'Pixels: {len(norm_flat)}'
+            f'Pixels: {len(diff_flat)}'
         )
 
         hist_ax.text(0.98, 0.97, stats_text, transform=hist_ax.transAxes,
@@ -346,16 +326,15 @@ class NormalizedBTDiffViewer:
 
 
 if __name__ == '__main__':
-    print("Normalized Brightness-Temperature Difference Viewer")
+    print("Brightness-Temperature Difference Viewer")
     print("=" * 50)
     print("\nControls:")
     print("  - Zone Slider: Select time/zone (z00-z24)")
     print("  - X/Y Center: Set center of zoom region")
     print("  - Box Size: Set size of zoom region (pixels)")
     print("  - Reset View: Return to full image")
-    print("  - Show Normalized ΔT: Toggle normalized vs raw ΔT display")
     print("  - Histogram buttons: Click to see histogram of each channel pair")
     print("\nLoading initial data...")
 
-    viewer = NormalizedBTDiffViewer()
+    viewer = BTDifferenceViewer()
     plt.show()
